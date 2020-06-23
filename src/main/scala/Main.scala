@@ -14,7 +14,7 @@ object pGCL {
 
   sealed trait Expression {
 
-    def eval (en: Env): Value = ???
+    def eval (en: Env): Value = ??? // This is just a normal evaluator that I can run but note that it will be non-deterministic
 
   }
 
@@ -50,12 +50,35 @@ object DL {
     def eval (en: Env): Option[Boolean] = this match {
 
       case ExpressionF (ex) => 
-        ex eval (en) match {
+        ex eval (en) match { // TODO: this evaluation is non-deterministic, so our satisfaction is non-deterministic
           case v : pGCL.BValue => Some (v == pGCL.True)
           case _ => None 
         }
 
       case NegF (f) => (f eval en) map (! _)
+
+      case BinaryF (f1, o, f2) =>
+        for {
+
+          v1 <- f1 eval en
+          v2 <- f2 eval en
+
+        } yield o match {
+
+            case And => v1 && v2
+            case Or => v1 || v2
+            case Imp => !v1 || v2
+            case Bimp => v1 == v2
+
+        }
+
+        case Exists (x, f) => ??? // this does not seem to be implementable (needs some form of decision procedure)
+
+        case Forall (x, f) => ??? // this does not seem to be implementable (needs some form of a decision procedure)
+
+        case Box (s, f) => ??? // I have not explored this, since I already found non-determinism earlier
+
+        case Update (s, f) => ??? // I have not explored this, since I already found non-determinism problems earlier
 
     }
 
