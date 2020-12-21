@@ -1,12 +1,10 @@
 package padlock
 
-object pDL {
-
-  import top._
+package object pdl {
 
   sealed trait Formula
 
-  case class ExprF (e: pGCL.Expression) extends Formula
+  case class ExprF (e: pgcl.Expression) extends Formula
 
   sealed trait BoolF extends Formula
   case class BinaryF (
@@ -33,7 +31,7 @@ object pDL {
   sealed trait ModalF extends Formula
 
   case class Box (
-    s: pGCL.Statement,
+    s: pgcl.Statement,
     f: Formula
   ) extends ModalF
 
@@ -42,6 +40,6 @@ object pDL {
     f: Formula
   ) extends ModalF
 
-  type Substitution = Map[Name, pGCL.Expression]
+  type Substitution = Map[Name, pgcl.Expression]
 }
 

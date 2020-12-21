@@ -1,9 +1,5 @@
-package padlock
-
-object top {
+package object padlock {
 
   type Probability = Double
-
   type Name = String
-
 }

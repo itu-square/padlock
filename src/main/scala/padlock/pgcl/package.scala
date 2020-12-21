@@ -1,8 +1,6 @@
 package padlock
 
-object pGCL {
-
-  import top._
+package object pgcl {
 
   sealed trait Value;
 
@@ -13,21 +11,13 @@ object pGCL {
   case class ValI (v: Int) extends Value
   case class ValP (p: Probability) extends Value
 
-
-  sealed trait Expression {
-
-    /** A regular evaluator for expressions, possibly nondeterministic */
-    def eval (en: Env): Value =
-      ???
-
-  }
-
+  sealed trait Expression
   case class VarExpr (v: Name) extends Expression
   case class ValExpr (v: Value) extends Expression
 
   object BinaryOperator extends Enumeration {
     type BinaryOperator = Value
-    val Plus, Minus, Mult, Div, Gt, Eq, Gte = Value
+    val Plus, Minus, Mult, Div, Gt, Eq, Gte, And, Or = Value
   }
   import BinaryOperator._
 
@@ -84,5 +74,6 @@ object pGCL {
     guard: Expression,
     body: Statement
   ) extends Statement
+
 
 }
