@@ -7,14 +7,15 @@ plugins {
 
 mainClassName = "Main"
 
-
 repositories {
-  jcenter()
+  maven {
+    url "https://repo1.maven.org/maven2/"
+  }
 }
 
 dependencies {
 
   implementation "org.scala-lang:scala-library:2.13.4"
-
+  implementation "org.typelevel:cats-core_2.13:2.3.0"
 }
 

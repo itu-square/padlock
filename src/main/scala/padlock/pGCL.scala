@@ -25,20 +25,32 @@ object pGCL {
   case class VarExpr (v: Name) extends Expression
   case class ValExpr (v: Value) extends Expression
 
-  case class BpExpr (
+  case class BExpr (
     e1: Expression,
-    op: Operator,
+    op: BinaryOperator,
     e2: Expression
   ) extends Expression
 
-  sealed trait Operator
-  case object Plus extends Operator
-  case object Minus extends Operator
-  case object Mult extends Operator
-  case object Div extends Operator
-  case object Gt extends Operator
-  case object Eq extends Operator
-  case object Gte extends Operator
+  sealed trait BinaryOperator
+  case object Plus extends BinaryOperator
+  case object Minus extends BinaryOperator
+  case object Mult extends BinaryOperator
+  case object Div extends BinaryOperator
+  case object Gt extends BinaryOperator
+  case object Eq extends BinaryOperator
+  case object Gte extends BinaryOperator
+
+  object UnaryOperator extends Enumeration {
+    type UnaryOperator = Value
+    val Not = Value
+  }
+  import UnaryOperator._
+
+  case class UExpr (
+    op: UnaryOperator,
+    e: Expression
+  ) extends Expression
+
 
   sealed trait Statement
   case object Abort extends Statement
@@ -65,15 +77,15 @@ object pGCL {
     s2: Statement
   ) extends Statement
 
-  case class While (
-    guard: Expression,
-    body: Statement
-  ) extends Statement
-
   case class If (
     hd: Expression,
     thn: Statement,
     els: Statement
+  ) extends Statement
+
+  case class While (
+    guard: Expression,
+    body: Statement
   ) extends Statement
 
 }

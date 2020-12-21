@@ -18,8 +18,6 @@ object pDL {
   sealed trait Operator
   case object And extends Operator
   case object Or extends Operator
-  case object Imp extends Operator
-  case object Bimp extends Operator
 
   sealed trait QuantifiedF extends Formula
   case class Exists (
