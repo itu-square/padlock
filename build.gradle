@@ -16,4 +16,6 @@ dependencies {
 
   implementation "org.scala-lang:scala-library:2.13.4"
   implementation "org.typelevel:cats-core_2.13:2.3.0"
+  scalaCompilerPlugins "com.olegpy:better-monadic-for_2.13:0.3.1" 
+
 }

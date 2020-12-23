@@ -38,36 +38,35 @@ package object pgcl {
     e: Expression
   ) extends Expression
 
-
   sealed trait Statement
   case object Abort extends Statement
   case object Skip extends Statement
 
   case class Assgn (
-    v: Name,
-    e: Expression
+    variable: Name,
+    expression: Expression
   ) extends Statement
 
   case class Seq (
-    s1: Statement,
-    s2: Statement
+    stmt1: Statement,
+    stmt2: Statement
   ) extends Statement
 
   case class Probabilistic (
-    s1: Statement,
-    pr: Expression,
-    s2: Statement
+    stmt1: Statement,
+    probability: Expression,
+    stmt2: Statement
   ) extends Statement
 
   case class Demonic (
-    s1: Statement,
-    s2: Statement
+    stmt1: Statement,
+    stmt2: Statement
   ) extends Statement
 
   case class If (
-    hd: Expression,
-    thn: Statement,
-    els: Statement
+    condition: Expression,
+    stmt1: Statement,
+    stmt2: Statement
   ) extends Statement
 
   case class While (
