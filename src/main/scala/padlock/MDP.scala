@@ -6,6 +6,7 @@ import cats.syntax.functor._
 import cats.syntax.flatMap._
 import cats.syntax.traverse._
 import padlock.pgcl._
+import padlock.pgcl.BinaryOperator._
 
 /**
  * The trait defining the MDP evaluation for PGCL programs.  It is a trait not
@@ -38,27 +39,98 @@ trait MDP[Scheduler[+_]] {
   // Concrete members
 
   private type SE = (Statement, Env)
-  private type SO[SE] = Scheduler[Option[SE]]
+
+  /** The type of program states: variable name - runtime value mappings */
+
+  type Env = Map [Name, RuntimeValue]
+
+  /** Representation of runtime values in the simulator */
 
   sealed trait RuntimeValue {
 
     def probability: Option[Probability] = None
 
     def boolean: Option[Boolean] = None
+
+    def operator (operator: BinaryOperator, that: RuntimeValue)
+      : Option[RuntimeValue] = None
   }
 
   case class RuntimeValB (v: Boolean) extends RuntimeValue {
+
     override def boolean: Option[Boolean] = Some (v)
+
+    def operator (operator: BinaryOperator, that: RuntimeValB)
+      : Option[RuntimeValue] =
+      operator match {
+        case And => Some (RuntimeValB (this.v && that.v))
+        case Or  => Some (RuntimeValB (this.v && that.v))
+        case Eq  => Some (RuntimeValB (this.v == that.v))
+        case Gt  => Some (RuntimeValB (this.v >  that.v))
+        case Gte => Some (RuntimeValB (this.v >= that.v))
+        case _   => None
+      }
+
   }
 
-  case class RuntimeValI (v: Int) extends RuntimeValue
+  case class RuntimeValI (v: Int) extends RuntimeValue {
+
+    def operator (operator: BinaryOperator, that: RuntimeValI)
+      : Option[RuntimeValue] =
+      operator match {
+        case Plus  => Some (RuntimeValI (this.v  + that.v))
+        case Minus => Some (RuntimeValI (this.v  - that.v))
+        case Mult  => Some (RuntimeValI (this.v  * that.v))
+        case Div   => Some (RuntimeValI (this.v  / that.v))
+        case Gt    => Some (RuntimeValB (this.v  > that.v))
+        case Eq    => Some (RuntimeValB (this.v == that.v))
+        case Gte   => Some (RuntimeValB (this.v >= that.v))
+        case _     => None
+      }
+
+  }
 
   case class RuntimeValP (p: Probability) extends RuntimeValue {
+
     override def probability: Option[Probability] =
           Some (p) filter { _ => p >= 0 && p <= 0 }
+
+    def operator (operator: BinaryOperator, that: RuntimeValP)
+      : Option[RuntimeValue] = {
+
+      def safe (p: Probability): Option[RuntimeValP] =
+        Some (RuntimeValP (p)) filter { _ => p >= 0 && p <= 0 }
+
+      operator match {
+        case Plus  => safe (this.p  + that.p)
+        case Minus => Some (RuntimeValP (this.p  - that.p))
+        case Mult  => Some (RuntimeValP (this.p  * that.p))
+        case Div   => Some (RuntimeValP (this.p  / that.p))
+        case Gt    => Some (RuntimeValB (this.p  > that.p))
+        case Eq    => Some (RuntimeValB (this.p == that.p))
+        case Gte   => Some (RuntimeValB (this.p >= that.p))
+        case _     => None
+      }
+
+    }
   }
 
-  type Env = Map [Name, RuntimeValue]
+  object RuntimeValue {
+
+    /**
+     * A convenience constructor converting PGCL syntax literals (known as
+     * Value) to RuntimeValue.
+     */
+    def apply (v: pgcl.Value): RuntimeValue =
+      v match {
+        case True => RuntimeValB (true)
+        case False => RuntimeValB (false)
+        case ValI (v) => RuntimeValI (v)
+        case ValP (p) => RuntimeValP (p)
+      }
+  }
+
+
 
   /**
    * Evaluate an expression 'e' in the environment 'env'.
@@ -69,9 +141,41 @@ trait MDP[Scheduler[+_]] {
    * to do this small-step as well in CPS-style
    */
 
-  def eval (e: Expression) (env: Env) (k: RuntimeValue => SO[SE]) = ???
+  def eval (expr: Expression) (env: Env) (k: RuntimeValue => Scheduler[Option[SE]])
+    : Scheduler[Option[SE]] =
+      expr match {
 
+        case VarExpr (name) =>
+          env.get (name) match {
+            case None =>
+              None flatTraverse k
 
+            case Some (value) =>
+              k (value)
+          }
+
+        case ValExpr (value) =>
+          k (RuntimeValue (value))
+
+        case BExpr (expr1, operator, expr2) =>
+          eval (expr1) (env) { value1: RuntimeValue =>
+            eval (expr2) (env) { value2: RuntimeValue =>
+              value1.operator (operator, value2) match { // not entirely sure if this does not resolve to the trait method always. I think in Java it would (TODO)
+                case None => None flatTraverse k
+                case Some (v) => k (v)
+              }
+            }
+          }
+
+        // TODO: An interesting warning that needs to be studied
+        case UExpr (UnaryOperator.Not, expr) =>
+          eval (expr) (env) { value: RuntimeValue =>
+            value.boolean match {
+              case None => None flatTraverse k
+              case Some (b) => k (RuntimeValB (!b))
+            }
+          }
+      }
 
 
   /**
@@ -79,14 +183,15 @@ trait MDP[Scheduler[+_]] {
    * continuation function 'k'
    */
 
-  def reduce (stmt: Statement) (env: Env) (k: SE => Scheduler[Option[SE]]): Scheduler[Option[SE]] = {
+  def reduce (stmt: Statement) (env: Env) (k: SE => Scheduler[Option[SE]])
+    : Scheduler[Option[SE]] = {
     stmt match {
 
       case Skip =>
         k (Skip -> env)
 
       case Abort =>
-        None.flatTraverse (k)
+        None flatTraverse k
 
       case Assgn (variable, expr) =>
         eval (expr) (env) { value: RuntimeValue =>

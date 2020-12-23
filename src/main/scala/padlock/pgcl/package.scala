@@ -22,9 +22,9 @@ package object pgcl {
   import BinaryOperator._
 
   case class BExpr (
-    e1: Expression,
-    op: BinaryOperator,
-    e2: Expression
+    expr1: Expression,
+    operator: BinaryOperator,
+    expr2: Expression
   ) extends Expression
 
   object UnaryOperator extends Enumeration {
@@ -34,8 +34,8 @@ package object pgcl {
   import UnaryOperator._
 
   case class UExpr (
-    op: UnaryOperator,
-    e: Expression
+    operator: UnaryOperator,
+    expr: Expression
   ) extends Expression
 
   sealed trait Statement
