@@ -9,6 +9,9 @@ import padlock.pgcl._
  * The general class able to represent the state of positionals and more complex
  * state-based schedulers (but not reach enough so far to represent history-based
  * schedulers, or probabilistic schedulers).
+ *
+ * Perhaps this should be called 'SimpleScheduler' but as long as we do not need
+ * the complex ones this might be a good choice.
  */
 class Scheduler[Env] (
   choices: Map [Tag, (Env, Statement, Statement) => Boolean])
