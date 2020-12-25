@@ -31,10 +31,15 @@ trait Scheduler[Env] {
    */
   def probabilistic (p: Probability): (Scheduler[Env], Boolean)
 
-
+  /**
+   * Enter a named scope.  Scope names are used to construct
+   * scheduler policies.
+   */
   def enter (scope: Tag): Scheduler[Env]
 
-  /** Returns None if attempting to leave the top scope */
+  /**
+   * Leave a named scope.  Returns None if attempting to leave the top scope
+   */
   def leave: Option[Scheduler[Env]]
 
 }
