@@ -44,7 +44,6 @@ class SimpleScheduler[Env] private (
   def right (tag: Tag): SimpleScheduler[Env] =
     this.const (tag, false)
 
-  def run: (SimpleScheduler[Env], SimpleScheduler[Env]) = ???
 
   /**
    * Resolve a demonic choice using your scheduling policy. May fail if the
@@ -65,6 +64,20 @@ class SimpleScheduler[Env] private (
    */
   override def probabilistic (p: Probability): (SimpleScheduler[Env], Boolean) =
     (new SimpleScheduler (choices, scope, genLong), genDouble <= p)
+
+
+  override def enter (scope: Tag): Scheduler[Env] =
+    new SimpleScheduler[Env] (
+      choices = this.choices,
+      scope = scope:: this.scope,
+      seed = this.seed
+    )
+
+  override def leave: Option[Scheduler[Env]] =
+    for {
+      _ <- scope.headOption
+      scope1 = this.scope.tail
+    } yield new SimpleScheduler[Env] (this.choices, scope1, seed)
 
 }
 

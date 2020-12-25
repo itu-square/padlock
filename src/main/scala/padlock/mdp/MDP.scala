@@ -1,11 +1,13 @@
 package padlock.mdp
 
+import cats.Eval
 import cats.Monad
 import cats.data.State
 import cats.instances.option._
 import cats.syntax.functor._
 import cats.syntax.flatMap._
 import cats.syntax.traverse._
+
 import padlock._
 import padlock.pgcl._
 import padlock.pgcl.BinaryOperator._
@@ -24,6 +26,8 @@ trait MDP {
   /** The internal state of the executor */
 
   type Runner[A] = State[Scheduler[Env], A]
+  def runner[A] (f: Scheduler[Env] => (Scheduler[Env], A)) =
+    State[Scheduler[Env], A] (f)
 
   /**
    * Ask the scheduler to resolve a probabilistic Boolean choice. Abstract, to
@@ -31,15 +35,18 @@ trait MDP {
    */
 
   def probabilistic (p: Probability): Runner[Boolean] =
-    State { s: Scheduler[Env] =>
-      s.probabilistic (p) }
+    State { s: Scheduler[Env] => s.probabilistic (p) }
 
   /**
-   * Ask the scheduler to reselve a demonic Boolean choice.  Abstract, to be
-   * provided for a particular scheduler type.
+   * Ask the scheduler to reselve a demonic Boolean choice.  Delegates to the
+   * scheduler. Returns None if the Scheduler's policy failed.  In such case, we
+   * should Abort like with any other error.
    */
 
-  def demonic: Runner[Boolean] = ???
+  def demonic (env: Env, stmt1: Statement, stmt2: Statement)
+    : Runner[Option[Boolean]] =
+    State { s: Scheduler[Env] =>
+      s.demonic (env, stmt1, stmt2) }
 
   /**
    * Evaluate an expression 'e' in the environment 'env'.
@@ -93,14 +100,14 @@ trait MDP {
    */
 
   def reduce (stmt: Statement) (env: Env) (k: SE => Runner[Option[SE]])
-    : Runner[Option[SE]] = {
+    : Runner[Option[SE]] =
     stmt match {
 
       case Skip =>
         k (Skip -> env)
 
       case Abort =>
-        None flatTraverse k
+        None flatTraverse k // I believe this should actually NOT run k
 
       case Assgn (variable, expr) =>
         eval (expr) (env) { value: RuntimeValue =>
@@ -112,6 +119,7 @@ trait MDP {
         reduce (stmt1) (env)  {
           case (stmt11, env1) =>
             val stmt = if (stmt11 != Skip) Seq (stmt11, stmt2) else stmt2
+            // TODO: this has to call reduce before k!
             k (stmt -> env1)
         }
 
@@ -127,6 +135,7 @@ trait MDP {
               for {
                 left <- probabilistic (probability)
                 stmt = if (left) stmt1 else stmt2
+                // TODO: this has to call reduce before k!
                 ose <- k (stmt -> env) // is this tail recursive?
               } yield ose
           }
@@ -135,8 +144,13 @@ trait MDP {
 
       case Demonic (stmt1, stmt2) =>
         for {
-          left <- this.demonic
-          stmt = if (left) stmt1 else stmt2
+          left <- this.demonic (env, stmt1, stmt2)
+          stmt = left match {
+                   case Some (true) => stmt1
+                   case Some (false) => stmt2
+                   case None => Abort
+                 }
+          // TODO: this has to call reduce before k!
           ose <- k (stmt -> env) // is this tail recursive?
         } yield ose
 
@@ -150,6 +164,7 @@ trait MDP {
 
             case Some (choice) =>
               val stmt = if (choice) stmt1 else stmt2
+              // TODO: this has to call reduce before k!
               k (stmt -> env)
           }
         }
@@ -164,20 +179,29 @@ trait MDP {
 
             case Some (continue) =>
               if (continue)
+                // TODO: This has to call reduce before k!
                 k (Seq (body, stmt) -> env)
               else
                 k (Skip -> env)
           }
         }
 
-      // case Scope (tag, stmt) =>
-      //   for {
-      //     _ = enter (tag)
-      //     ose <- k (stmt -> env)
-      //   } yield ose
+      case Scope (tag, body) =>
+        runner[Option[SE]] { s1: Scheduler[Env] =>
+          val rose = reduce (body) (env: Env) { se =>
+            runner[Option[SE]] { s2: Scheduler[Env] =>
+              s2.leave match {
+                case None =>
+                  k (Abort -> se._2).run (s2).value
+                case Some (s3) =>
+                  k (se).run (s3).value
+              }
+            }
+          }
+          rose.run (s1.enter (tag)).value
+        }
     }
 
-  }
 
   /** Execute one run of the system (impure). */
   def run1 (s: Statement) (env: Env = Map ()): Env =  {

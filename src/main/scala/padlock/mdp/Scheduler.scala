@@ -31,5 +31,11 @@ trait Scheduler[Env] {
    */
   def probabilistic (p: Probability): (Scheduler[Env], Boolean)
 
+
+  def enter (scope: Tag): Scheduler[Env]
+
+  /** Returns None if attempting to leave the top scope */
+  def leave: Option[Scheduler[Env]]
+
 }
 
