@@ -10,29 +10,29 @@ import padlock.pgcl.BinaryOperator._
 
 /**
  * The trait defining the MDP evaluation for PGCL programs.  It is a trait not
- * an object (value) becuase it abstracts the scheduler. The 'Scheduler' type is
+ * an object (value) becuase it abstracts the scheduler. The 'Runner' type is
  * a type of 'dual' schedulers.  A scheduler resolves both the probabilistic
  * decisions and nondeterministic decisions.
  */
 
-trait MDP[Scheduler[+_]] {
+trait MDP[Runner[+_]] {
 
   /**
    * Ask the scheduler to resolve a probabilistic Boolean choice. Abstract, to
    * be provided for a particular scheduler type
    */
 
-  def flip (p: Probability): Scheduler[Boolean]
+  def flip (p: Probability): Runner[Boolean]
 
   /**
    * Ask the scheduler to reselve a demonic Boolean choice.  Abstract, to be
    * provided for a particular scheduler type.
    */
 
-  def demonic: Scheduler[Boolean]
+  def demonic: Runner[Boolean]
 
-  /** Scheduler[_] must be a monad, provide for the particular type */
-  implicit def monadScheduler: Monad[Scheduler]
+  /** Runner[_] must be a monad, provide for the particular type */
+  implicit def monadRunner: Monad[Runner]
 
 
 
@@ -60,6 +60,10 @@ trait MDP[Scheduler[+_]] {
 
     override def boolean: Option[Boolean] = Some (v)
 
+    /**
+     * TODO: I suspect this does not resolve with the other methods
+     * polymorphically.  Write a regression test and fix.
+     */
     def operator (operator: BinaryOperator, that: RuntimeValB)
       : Option[RuntimeValue] =
       operator match {
@@ -141,8 +145,8 @@ trait MDP[Scheduler[+_]] {
    * to do this small-step as well in CPS-style
    */
 
-  def eval (expr: Expression) (env: Env) (k: RuntimeValue => Scheduler[Option[SE]])
-    : Scheduler[Option[SE]] =
+  def eval (expr: Expression) (env: Env) (k: RuntimeValue => Runner[Option[SE]])
+    : Runner[Option[SE]] =
       expr match {
 
         case VarExpr (name) =>
@@ -183,8 +187,8 @@ trait MDP[Scheduler[+_]] {
    * continuation function 'k'
    */
 
-  def reduce (stmt: Statement) (env: Env) (k: SE => Scheduler[Option[SE]])
-    : Scheduler[Option[SE]] = {
+  def reduce (stmt: Statement) (env: Env) (k: SE => Runner[Option[SE]])
+    : Runner[Option[SE]] = {
     stmt match {
 
       case Skip =>
@@ -261,12 +265,18 @@ trait MDP[Scheduler[+_]] {
           }
         }
 
+      // case Scope (tag, stmt) =>
+      //   for {
+      //     _ = enter (tag)
+      //     ose <- k (stmt -> env)
+      //   } yield ose
     }
+
   }
 
   /** Execute one run of the system (impure). */
   def run1 (s: Statement) (env: Env = Map ()): Env =  {
-    // reduce (s) (env) (se => monadScheduler.pure (Some (se)))
+    // reduce (s) (env) (se => monadRunner.pure (Some (se)))
     // .run (with some newly initialized seed
     // .valueA (get hte value out of it
     ???

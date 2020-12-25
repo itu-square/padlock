@@ -74,5 +74,12 @@ package object pgcl {
     body: Statement
   ) extends Statement
 
+  type Tag = String
+
+  case class Scope (
+    tag: Tag,
+    body: Statement
+  ) extends Statement
+
 
 }
