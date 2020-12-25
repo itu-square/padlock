@@ -187,19 +187,19 @@ trait MDP {
         }
 
       case Scope (tag, body) =>
-        runner[Option[SE]] { s1: Scheduler[Env] =>
-          val rose = reduce (body) (env: Env) { se =>
-            runner[Option[SE]] { s2: Scheduler[Env] =>
-              s2.leave match {
-                case None =>
-                  k (Abort -> se._2).run (s2).value
-                case Some (s3) =>
-                  k (se).run (s3).value
-              }
-            }
-          }
-          rose.run (s1.enter (tag)).value
-        }
+        for {
+          _ <- State.modify[Scheduler[Env]] { _.enter (tag) }
+          ose <- reduce (body) (env: Env) { se =>
+               runner[Option[SE]] { s2: Scheduler[Env] =>
+                 s2.leave match {
+                   case None =>
+                     k (Abort -> se._2).run (s2).value
+                   case Some (s3) =>
+                     k (se).run (s3).value
+                 }
+               }
+             }
+        } yield ose
     }
 
 
