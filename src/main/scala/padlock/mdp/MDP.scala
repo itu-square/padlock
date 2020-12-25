@@ -17,32 +17,29 @@ import padlock.pgcl.BinaryOperator._
  * decisions and nondeterministic decisions.
  */
 
-trait MDP[Scheduler[_]] {
+trait MDP {
 
   private type SE = (Statement, Env)
 
   /** The internal state of the executor */
 
-  type Runner[A] = State[Scheduler[Env],A]
+  type Runner[A] = State[Scheduler[Env], A]
 
   /**
    * Ask the scheduler to resolve a probabilistic Boolean choice. Abstract, to
    * be provided for a particular scheduler type
    */
 
-  def flip (p: Probability): Runner[Boolean]
+  def probabilistic (p: Probability): Runner[Boolean] =
+    State { s: Scheduler[Env] =>
+      s.probabilistic (p) }
 
   /**
    * Ask the scheduler to reselve a demonic Boolean choice.  Abstract, to be
    * provided for a particular scheduler type.
    */
 
-  def demonic: Runner[Boolean]
-
-  /**
-   * Runner[_] must be a monad, provide for the particular type.
-   */
-  implicit def monadRunner: Monad[Runner]
+  def demonic: Runner[Boolean] = ???
 
   /**
    * Evaluate an expression 'e' in the environment 'env'.
@@ -128,7 +125,7 @@ trait MDP[Scheduler[_]] {
 
             case Some (probability) =>
               for {
-                left <- flip (probability)
+                left <- probabilistic (probability)
                 stmt = if (left) stmt1 else stmt2
                 ose <- k (stmt -> env) // is this tail recursive?
               } yield ose
