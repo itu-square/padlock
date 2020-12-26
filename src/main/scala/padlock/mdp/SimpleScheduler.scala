@@ -26,15 +26,14 @@ class SimpleScheduler[Env] private (
   private lazy val genDouble = new scala.util.Random (seed).nextDouble ()
   private lazy val genLong = new scala.util.Random (seed).nextLong ()
 
-  private type ESS2B = (Env, Statement, Statement) => Boolean
-
-  def schedule (tag: Tag, choice: ESS2B): SimpleScheduler[Env] = {
-    val choices1 = choices + (tag -> choice)
-    new SimpleScheduler[Env] (choices1, scope, seed)
-  }
+  def schedule (tag: Tag) (choice: (Env, Statement, Statement) => Boolean)
+    : SimpleScheduler[Env] = {
+      val choices1 = choices + (tag -> choice)
+      new SimpleScheduler[Env] (choices1, scope, seed)
+    }
 
   def const (tag: Tag, left: Boolean): SimpleScheduler[Env] = {
-    val const_choice: ESS2B = { case (_,_,_) => left }
+    def const_choice (e: Env, s1: Statement, s2: Statement):  Boolean = left
     new SimpleScheduler[Env] (choices + (tag -> const_choice), scope, seed)
   }
 
@@ -104,10 +103,23 @@ object SimpleScheduler {
     this.empty[Env] (seed)
       .right (_top_)
 
-  // TODO: Not sure that this is a simple scheduler
-  // TODO: It seems that the entire probabilistic part of schedulers should be
-  // promtoed to the super class "'Scheduler' because the schedulers are not
-  // supposed to differ on this aspect
-  def FairCoinScheduler[Env] (seed: Long): SimpleScheduler[Env] = ???
+  /**
+   * A scheduler that tosses a fair coin at each binary demonic choice.
+   * This is (obviously) not a positional scheduler.
+   *
+   * TODO: Not sure that this is a simple scheduler, but I hacked it in.
+   */
+  def FairCoinScheduler[Env] (seed: Long): SimpleScheduler[Env] =
+    new SimpleScheduler[Env] (
+      choices = Map[Tag, (Env, Statement, Statement) => Boolean] (),
+      scope = List (_top_),
+      seed = seed) {
+
+      override def demonic (env: Env, stmt1: Statement, stmt2: Statement)
+        : (SimpleScheduler[Env], Option[Boolean]) =
+          probabilistic (0.5) match {
+            case (scheduler, choice) => scheduler -> Some (choice)
+          }
+    }
 
 }
