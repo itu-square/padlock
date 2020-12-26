@@ -119,8 +119,7 @@ trait MDP {
         reduce (stmt1) (env)  {
           case (stmt11, env1) =>
             val stmt = if (stmt11 != Skip) Seq (stmt11, stmt2) else stmt2
-            // TODO: this has to call reduce before k!
-            k (stmt -> env1)
+            reduce (stmt) (env1) (k)
         }
 
 
@@ -135,8 +134,7 @@ trait MDP {
               for {
                 left <- probabilistic (probability)
                 stmt = if (left) stmt1 else stmt2
-                // TODO: this has to call reduce before k!
-                ose <- k (stmt -> env) // is this tail recursive?
+                ose <- reduce (stmt) (env) (k) // is this tail recursive?
               } yield ose
           }
         }
@@ -150,8 +148,7 @@ trait MDP {
                    case Some (false) => stmt2
                    case None => Abort
                  }
-          // TODO: this has to call reduce before k!
-          ose <- k (stmt -> env) // is this tail recursive?
+          ose <- reduce (stmt) (env) (k) // is this tail recursive?
         } yield ose
 
 
@@ -165,7 +162,7 @@ trait MDP {
             case Some (choice) =>
               val stmt = if (choice) stmt1 else stmt2
               // TODO: this has to call reduce before k!
-              k (stmt -> env)
+              reduce (stmt) (env) (k)
           }
         }
 
@@ -179,8 +176,7 @@ trait MDP {
 
             case Some (continue) =>
               if (continue)
-                // TODO: This has to call reduce before k!
-                k (Seq (body, stmt) -> env)
+                reduce (Seq (body, stmt)) (env) (k)
               else
                 k (Skip -> env)
           }
@@ -190,15 +186,13 @@ trait MDP {
         for {
           _ <- State.modify[Scheduler[Env]] { _.enter (tag) }
           ose <- reduce (body) (env: Env) { se =>
-               runner[Option[SE]] { s2: Scheduler[Env] =>
-                 s2.leave match {
-                   case None =>
-                     k (Abort -> se._2).run (s2).value
-                   case Some (s3) =>
-                     k (se).run (s3).value
-                 }
-               }
-             }
+                  runner[Option[SE]] { s2: Scheduler[Env] =>
+                    s2.leave match {
+                      case None => k (Abort -> se._2).run (s2).value
+                      case Some (s3) => k (se).run (s3).value
+                    }
+                  }
+                }
         } yield ose
     }
 
