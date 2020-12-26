@@ -1,7 +1,7 @@
 package padlock.mdp
 
 import cats.Eval
-import cats.Monad
+import cats.Applicative
 import cats.data.State
 import cats.instances.option._
 import cats.syntax.functor._
@@ -120,6 +120,8 @@ trait MDP {
           case (stmt11, env1) =>
             val stmt = if (stmt11 != Skip) Seq (stmt11, stmt2) else stmt2
             reduce (stmt) (env1) (k)
+            // TODO (test the following, which I would find a more natural rule)
+            // reduce (stmt1) (env1) (se => reduce (stmt2) (se._2) (k))
         }
 
 
@@ -198,10 +200,13 @@ trait MDP {
 
 
   /** Execute one run of the system (impure). */
-  def run1 (s: Statement) (env: Env = Map ()): Env =  {
-    // reduce (s) (env) (se => monadRunner.pure (Some (se)))
-    // .run (with some newly initialized seed
-    // .valueA (get hte value out of it
-    ???
+  def run1 (s: Statement) (env: Env = Map ()) (scheduler: Scheduler[Env])
+    : Either[String,Env] =  {
+    reduce (s) (env) (se => implicitly[Applicative[Runner]].pure (Some (se)))
+     .run (scheduler)
+     .value
+     ._2
+     .map { _._2 }
+     .toRight ("TODO: Error message")
   }
 }
