@@ -20,7 +20,7 @@ import padlock.pgcl.BinaryOperator._
  * decisions and nondeterministic decisions.
  */
 
-trait MDP {
+object MDP {
 
   private type SE = (Statement, Env)
 
@@ -216,12 +216,14 @@ trait MDP {
 
 
   /** Execute one run of the system (impure). */
-  def run1 (s: Statement) (env: Env = Map ()) (scheduler: Scheduler[Env])
-    : Either[String, Env] =  {
-    reduce (s) (env) (se => implicitly[Applicative[Runner]].pure (Right (se)))
-     .run (scheduler)
-     .value
-     ._2
-     .map { _._2 }
-  }
+  def run1
+    (stmt: Statement,
+     scheduler: Scheduler[Env] = SimpleScheduler.FairCoinScheduler (42),
+     env: Env = Map ()) : Either[String, Env] =  {
+      reduce (stmt) (env) (se => implicitly[Applicative[Runner]].pure (Right (se)))
+        .run (scheduler)
+        .value
+        ._2
+        .map { _._2 }
+    }
 }
