@@ -52,7 +52,7 @@ class SimpleScheduler[Env] private (
   override def demonic (env: Env, stmt1: Statement, stmt2: Statement)
     : (SimpleScheduler[Env], Option[Boolean]) = {
     val resolution = for {
-      tag <- scope.headOption
+      tag <- scope.find { choices isDefinedAt _ }
       choice <- choices.get (tag)
     } yield choice (env, stmt1, stmt2)
     this -> resolution
@@ -83,12 +83,31 @@ class SimpleScheduler[Env] private (
 
 object SimpleScheduler {
 
+  private val _top_ : Tag = "_top_"
+
   def empty[Env] (seed: Long): SimpleScheduler[Env] =
     new SimpleScheduler[Env] (
       choices = Map[Tag, (Env, Statement, Statement) => Boolean] (),
-      scope = List ("_top_"),
+      scope = List (_top_),
       seed = seed)
 
+  /** A convenience constructor for building empty schedulers */
   def apply[Env] (seed: Long): SimpleScheduler[Env] = empty (seed)
+
+  /** A bunch of predefined schedulers */
+
+  def AlwaysLeftScheduler[Env] (seed: Long): SimpleScheduler[Env] =
+    this.empty[Env] (seed)
+      .left (_top_)
+
+  def AlwaysRightScheduler[Env] (seed: Long): SimpleScheduler[Env] =
+    this.empty[Env] (seed)
+      .right (_top_)
+
+  // TODO: Not sure that this is a simple scheduler
+  // TODO: It seems that the entire probabilistic part of schedulers should be
+  // promtoed to the super class "'Scheduler' because the schedulers are not
+  // supposed to differ on this aspect
+  def FairCoinScheduler[Env] (seed: Long): SimpleScheduler[Env] = ???
 
 }
