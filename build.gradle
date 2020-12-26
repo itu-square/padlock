@@ -14,7 +14,6 @@ dependencies {
 
   implementation "org.scala-lang:scala-library:2.13.4"
   implementation "org.typelevel:cats-core_2.13:2.3.0"
-  scalaCompilerPlugins "com.olegpy:better-monadic-for_2.13:0.3.1" 
 
   implementation     "org.scalactic:scalactic_2.13:3.2.2" 
   testImplementation "org.scalatest:scalatest_2.13:3.2.2" 
@@ -23,6 +22,8 @@ dependencies {
   testRuntime        "com.vladsch.flexmark:flexmark-all:0.36.8"
 }
 
+// This target builds a fat jar, which we can use standalone in a jupyter
+// notebook
 jar {
   baseName = 'padlock'
   version = '0.0'

@@ -1,18 +1,11 @@
 package padlock
 package mdp
 
-import org.scalacheck._
+import cats.Applicative
 
 import padlock.pgcl._
 
-
-class MDPSpec
-  extends org.scalatest.freespec.AnyFreeSpec
-  with org.scalatest.matchers.should.Matchers
-  with org.scalatest.Inside {
-
-  val alwaysLeft =
-    SimpleScheduler.AlwaysLeftScheduler[padlock.mdp.Env] (42)
+class MDPSpec extends PadlockSpec {
 
   val test0 = Probabilistic(
     Assgn("coin", ValExpr(True)),
@@ -20,18 +13,44 @@ class MDPSpec
     Assgn("coin", ValExpr(False))
   )
 
-  "Regressions of the reducer" - {
+  val test1 = ValExpr (ValP (0.5))
+
+  val env0: Env = Map[String,RuntimeValue] ()
+
+  "Regressions" - {
 
     "Probabilistic choice is ignored!" in {
 
-      inside (MDP.run1 (test0, alwaysLeft)) {
-        case Right (env) =>
-          env should not be empty
-        case Left (msg) =>
-          fail ("The simulator should not fail on test0!")
-      }
+      forAll { seed: Long =>
 
+        val alwaysLeft =
+          SimpleScheduler.AlwaysLeftScheduler[padlock.mdp.Env] (seed)
+
+        inside (MDP.run1 (test0, alwaysLeft)) {
+
+          case Right (env) =>
+            env should not be empty
+
+          case Left (msg) =>
+            fail ("The simulator should not fail on test0!")
+        }
+      }
     }
 
+    "Const expression evaluates to the inner constant!" in {
+
+      forAll { seed: Long =>
+
+        val alwaysLeft =
+          SimpleScheduler.AlwaysLeftScheduler[padlock.mdp.Env] (seed)
+
+        MDP.eval (test1) (env0) { value: RuntimeValue =>
+            value should be (RuntimeValP (0.5))
+            value.probability should be (Some  (0.5))
+            implicitly[Applicative[MDP.Runner]].pure (Left ("ignore"))
+        }
+      }
+    }
   }
+
 }

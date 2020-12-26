@@ -60,7 +60,7 @@ case class RuntimeValI (v: Int) extends RuntimeValue {
 case class RuntimeValP (p: Probability) extends RuntimeValue {
 
   override def probability: Option[Probability] =
-        Some (p) filter { _ => p >= 0 && p <= 0 }
+        Some (p) filter { _ => p >= 0 && p <= 1 }
 
   def operator (operator: BinaryOperator, that: RuntimeValP)
     : Option[RuntimeValue] = {
