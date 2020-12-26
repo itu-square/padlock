@@ -4,6 +4,7 @@ import cats.Eval
 import cats.Applicative
 import cats.data.State
 import cats.instances.option._
+import cats.instances.either._
 import cats.syntax.functor._
 import cats.syntax.flatMap._
 import cats.syntax.traverse._
@@ -57,14 +58,15 @@ trait MDP {
    * to do this small-step as well in CPS-style
    */
 
-  def eval (expr: Expression) (env: Env) (k: RuntimeValue => Runner[Option[SE]])
-    : Runner[Option[SE]] =
+  def eval (expr: Expression) (env: Env) (k: RuntimeValue => Runner[Either[String, SE]])
+    : Runner[Either[String, SE]] =
       expr match {
 
         case VarExpr (name) =>
           env.get (name) match {
             case None =>
-              None flatTraverse k
+              implicitly[Applicative[Runner]]
+                .pure (Left (s"Undefined variable $name!"))
 
             case Some (value) =>
               k (value)
@@ -76,9 +78,15 @@ trait MDP {
         case BExpr (expr1, operator, expr2) =>
           eval (expr1) (env) { value1: RuntimeValue =>
             eval (expr2) (env) { value2: RuntimeValue =>
-              value1.operator (operator, value2) match { // not entirely sure if this does not resolve to the trait method always. I think in Java it would (TODO)
-                case None => None flatTraverse k
-                case Some (v) => k (v)
+              value1.operator (operator, value2) match {
+                // not entirely sure if this does not resolve to the trait method always. I think in Java it would (TODO)
+
+                case None =>
+                  implicitly[Applicative[Runner]]
+                    .pure (Left (s"Incorrect operator in a Boolean expression!"))
+
+                case Some (value) =>
+                  k (value)
               }
             }
           }
@@ -87,8 +95,13 @@ trait MDP {
         case UExpr (UnaryOperator.Not, expr) =>
           eval (expr) (env) { value: RuntimeValue =>
             value.boolean match {
-              case None => None flatTraverse k
-              case Some (b) => k (RuntimeValB (!b))
+
+              case None =>
+                implicitly[Applicative[Runner]]
+                  .pure (Left (s"Incorrect operator in a Boolean expression!"))
+
+              case Some (b) =>
+                k (RuntimeValB (!b))
             }
           }
       }
@@ -99,15 +112,15 @@ trait MDP {
    * continuation function 'k'
    */
 
-  def reduce (stmt: Statement) (env: Env) (k: SE => Runner[Option[SE]])
-    : Runner[Option[SE]] =
+  def reduce (stmt: Statement) (env: Env) (k: SE => Runner[Either[String, SE]])
+    : Runner[Either[String, SE]] =
     stmt match {
 
       case Skip =>
         k (Skip -> env)
 
-      case Abort =>
-        None flatTraverse k // I believe this should actually NOT run k
+      case Abort (msg) =>
+        implicitly[Applicative[Runner]].pure (Left (msg))
 
       case Assgn (variable, expr) =>
         eval (expr) (env) { value: RuntimeValue =>
@@ -130,14 +143,14 @@ trait MDP {
           value.probability match {
 
             case None =>
-              k (Abort -> env)
+              k (Abort ("Illegal value of probability!") -> env)
 
             case Some (probability) =>
               for {
                 left <- probabilistic (probability)
                 stmt = if (left) stmt1 else stmt2
-                ose <- reduce (stmt) (env) (k) // is this tail recursive?
-              } yield ose
+                ese <- reduce (stmt) (env) (k) // is this tail recursive?
+              } yield ese
           }
         }
 
@@ -148,10 +161,10 @@ trait MDP {
           stmt = left match {
                    case Some (true) => stmt1
                    case Some (false) => stmt2
-                   case None => Abort
+                   case None => Abort ("Incomplete scheduler policy!")
                  }
-          ose <- reduce (stmt) (env) (k) // is this tail recursive?
-        } yield ose
+          ese <- reduce (stmt) (env) (k) // is this tail recursive?
+        } yield ese
 
 
       case If (condition, stmt1, stmt2) =>
@@ -159,11 +172,10 @@ trait MDP {
           value.boolean match {
 
             case None =>
-              k (Abort -> env)
+              k (Abort ("Non-Boolean condition in 'if'!") -> env)
 
             case Some (choice) =>
               val stmt = if (choice) stmt1 else stmt2
-              // TODO: this has to call reduce before k!
               reduce (stmt) (env) (k)
           }
         }
@@ -174,7 +186,7 @@ trait MDP {
           value.boolean match {
 
             case None =>
-              k (Abort -> env)
+              k (Abort ("Non-Boolean condition in 'while'!") -> env)
 
             case Some (continue) =>
               if (continue)
@@ -188,10 +200,14 @@ trait MDP {
         for {
           _ <- State.modify[Scheduler[Env]] { _.enter (tag) }
           ose <- reduce (body) (env: Env) { se =>
-                  runner[Option[SE]] { s2: Scheduler[Env] =>
+                  runner[Either[String, SE]] { s2: Scheduler[Env] =>
                     s2.leave match {
-                      case None => k (Abort -> se._2).run (s2).value
-                      case Some (s3) => k (se).run (s3).value
+                      case None =>
+                        k (
+                          Abort ("Leaving top scope is impossible!") -> se._2
+                        ).run (s2).value
+                      case Some (s3) =>
+                        k (se).run (s3).value
                     }
                   }
                 }
@@ -201,12 +217,11 @@ trait MDP {
 
   /** Execute one run of the system (impure). */
   def run1 (s: Statement) (env: Env = Map ()) (scheduler: Scheduler[Env])
-    : Either[String,Env] =  {
-    reduce (s) (env) (se => implicitly[Applicative[Runner]].pure (Some (se)))
+    : Either[String, Env] =  {
+    reduce (s) (env) (se => implicitly[Applicative[Runner]].pure (Right (se)))
      .run (scheduler)
      .value
      ._2
      .map { _._2 }
-     .toRight ("TODO: Error message")
   }
 }

@@ -39,7 +39,7 @@ package object pgcl {
   ) extends Expression
 
   sealed trait Statement
-  case object Abort extends Statement
+  case class Abort (msg: String = "Aborted") extends Statement
   case object Skip extends Statement
 
   case class Assgn (
