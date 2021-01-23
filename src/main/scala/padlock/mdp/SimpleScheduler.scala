@@ -12,7 +12,7 @@ import padlock.pgcl._
  * schedulers, or probabilistic schedulers).
  */
 class SimpleScheduler[Env] private (
-  choices: Map[Tag, (Env, Statement, Statement) => Boolean],
+  policy: Map[Tag, (Env, Statement, Statement) => Boolean],
   private val scope: List[Tag],
   private val seed: Long
 ) extends Scheduler[Env]
@@ -28,13 +28,13 @@ class SimpleScheduler[Env] private (
 
   def schedule (tag: Tag) (choice: (Env, Statement, Statement) => Boolean)
     : SimpleScheduler[Env] = {
-      val choices1 = choices + (tag -> choice)
-      new SimpleScheduler[Env] (choices1, scope, seed)
+      val policy1 = policy + (tag -> choice)
+      new SimpleScheduler[Env] (policy1, scope, seed)
     }
 
   def const (tag: Tag, left: Boolean): SimpleScheduler[Env] = {
     def const_choice (e: Env, s1: Statement, s2: Statement):  Boolean = left
-    new SimpleScheduler[Env] (choices + (tag -> const_choice), scope, seed)
+    new SimpleScheduler[Env] (policy + (tag -> const_choice), scope, seed)
   }
 
   def left (tag: Tag): SimpleScheduler[Env] =
@@ -51,8 +51,8 @@ class SimpleScheduler[Env] private (
   override def demonic (env: Env, stmt1: Statement, stmt2: Statement)
     : (SimpleScheduler[Env], Option[Boolean]) = {
     val resolution = for {
-      tag <- scope.find { choices isDefinedAt _ }
-      choice <- choices.get (tag)
+      tag <- scope.find { policy isDefinedAt _ }
+      choice <- policy.get (tag)
     } yield choice (env, stmt1, stmt2)
     this -> resolution
   }
@@ -62,12 +62,12 @@ class SimpleScheduler[Env] private (
    * generator.
    */
   override def probabilistic (p: Probability): (SimpleScheduler[Env], Boolean) =
-    (new SimpleScheduler (choices, scope, genLong), genDouble <= p)
+    (new SimpleScheduler (policy, scope, genLong), genDouble <= p)
 
 
   override def enter (scope: Tag): Scheduler[Env] =
     new SimpleScheduler[Env] (
-      choices = this.choices,
+      policy = this.policy,
       scope = scope:: this.scope,
       seed = this.seed
     )
@@ -76,7 +76,7 @@ class SimpleScheduler[Env] private (
     for {
       _ <- scope.headOption
       scope1 = this.scope.tail
-    } yield new SimpleScheduler[Env] (this.choices, scope1, seed)
+    } yield new SimpleScheduler[Env] (this.policy, scope1, seed)
 
 }
 
@@ -86,7 +86,7 @@ object SimpleScheduler {
 
   def empty[Env] (seed: Long): SimpleScheduler[Env] =
     new SimpleScheduler[Env] (
-      choices = Map[Tag, (Env, Statement, Statement) => Boolean] (),
+      policy = Map[Tag, (Env, Statement, Statement) => Boolean] (),
       scope = List (_top_),
       seed = seed)
 
@@ -107,11 +107,11 @@ object SimpleScheduler {
    * A scheduler that tosses a fair coin at each binary demonic choice.
    * This is (obviously) not a positional scheduler.
    *
-   * TODO: Not sure that this is a simple scheduler, but I hacked it in.
+   * Not sure that this is a simple scheduler, but I hacked it in.
    */
   def FairCoinScheduler[Env] (seed: Long): SimpleScheduler[Env] =
     new SimpleScheduler[Env] (
-      choices = Map[Tag, (Env, Statement, Statement) => Boolean] (),
+      policy = Map[Tag, (Env, Statement, Statement) => Boolean] (),
       scope = List (_top_),
       seed = seed) {
 
