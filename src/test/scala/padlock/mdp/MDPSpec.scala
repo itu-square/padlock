@@ -24,7 +24,7 @@ class MDPSpec extends PadlockSpec {
       forAll { seed: Long =>
 
         val alwaysLeft =
-          SimpleScheduler.AlwaysLeftScheduler[padlock.mdp.Env] (seed)
+          SimpleScheduler.AlwaysLeftScheduler[padlock.mdp.Env,Statement] (seed)
 
         inside (MDP.run1 (test0, alwaysLeft)) {
 
@@ -42,7 +42,7 @@ class MDPSpec extends PadlockSpec {
       forAll { seed: Long =>
 
         val alwaysLeft =
-          SimpleScheduler.AlwaysLeftScheduler[padlock.mdp.Env] (seed)
+          SimpleScheduler.AlwaysLeftScheduler[padlock.mdp.Env, Statement] (seed)
 
         MDP.eval (test1) (env0) { value: RuntimeValue =>
             value should be (RuntimeValP (0.5))

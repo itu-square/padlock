@@ -11,11 +11,11 @@ import padlock.pgcl._
  * state-based schedulers (but not reach enough so far to represent history-based
  * schedulers, or probabilistic schedulers).
  */
-class SimpleScheduler[Env] private (
-  policy: Map[Tag, (Env, Statement, Statement) => Boolean],
+class SimpleScheduler[Env, Out] private (
+  policy: Map[Tag, Env => Boolean],
   private val scope: List[Tag],
   private val seed: Long
-) extends Scheduler[Env]
+) extends Scheduler[Env, Out]
 {
   /**
    * This is a hack to make schedulers referentially transparent (so that all
@@ -23,24 +23,31 @@ class SimpleScheduler[Env] private (
    * compared with equality).  The trick is to use the generator with a seed,
    * without ever persisiting it.  The seed itself is persistent
    */
-  private lazy val genDouble = new scala.util.Random (seed).nextDouble ()
-  private lazy val genLong = new scala.util.Random (seed).nextLong ()
+  private lazy val genDouble =
+    new scala.util.Random (seed).nextDouble ()
 
-  def schedule (tag: Tag) (choice: (Env, Statement, Statement) => Boolean)
-    : SimpleScheduler[Env] = {
+  private lazy val genLong =
+    new scala.util.Random (seed).nextLong ()
+
+
+  def schedule (tag: Tag) (choice: Env => Boolean)
+    : SimpleScheduler[Env, Out] = {
       val policy1 = policy + (tag -> choice)
-      new SimpleScheduler[Env] (policy1, scope, seed)
+      new SimpleScheduler[Env, Out] (policy1, scope, seed)
     }
 
-  def const (tag: Tag, left: Boolean): SimpleScheduler[Env] = {
-    def const_choice (e: Env, s1: Statement, s2: Statement):  Boolean = left
-    new SimpleScheduler[Env] (policy + (tag -> const_choice), scope, seed)
+
+  def const (tag: Tag, left: Boolean): SimpleScheduler[Env, Out] = {
+    def const_choice (e: Env): Boolean = left
+    new SimpleScheduler[Env, Out] (policy + (tag -> const_choice), scope, seed)
   }
 
-  def left (tag: Tag): SimpleScheduler[Env] =
+
+  def left (tag: Tag): SimpleScheduler[Env, Out] =
     this.const (tag, true)
 
-  def right (tag: Tag): SimpleScheduler[Env] =
+
+  def right (tag: Tag): SimpleScheduler[Env, Out] =
     this.const (tag, false)
 
 
@@ -48,12 +55,12 @@ class SimpleScheduler[Env] private (
    * Resolve a demonic choice using your scheduling policy. May fail if the
    * policy is partial.
    */
-  override def demonic (env: Env, stmt1: Statement, stmt2: Statement)
-    : (SimpleScheduler[Env], Option[Boolean]) = {
+  override def demonic (env: Env): (SimpleScheduler[Env, Out], Option[Boolean]) = {
+
     val resolution = for {
       tag <- scope.find { policy isDefinedAt _ }
       choice <- policy.get (tag)
-    } yield choice (env, stmt1, stmt2)
+    } yield choice (env)
     this -> resolution
   }
 
@@ -61,22 +68,23 @@ class SimpleScheduler[Env] private (
    * Resolve a  probabilistic choice, using the embedded random number
    * generator.
    */
-  override def probabilistic (p: Probability): (SimpleScheduler[Env], Boolean) =
-    (new SimpleScheduler (policy, scope, genLong), genDouble <= p)
+  override def probabilistic (p: Probability)
+  : (SimpleScheduler[Env, Out], Boolean) =
+      (new SimpleScheduler (policy, scope, genLong), genDouble <= p)
 
 
-  override def enter (scope: Tag): Scheduler[Env] =
-    new SimpleScheduler[Env] (
+  override def enter (scope: Tag): Scheduler[Env, Out] =
+    new SimpleScheduler[Env, Out] (
       policy = this.policy,
       scope = scope:: this.scope,
       seed = this.seed
     )
 
-  override def leave: Option[Scheduler[Env]] =
+  override def leave: Option[Scheduler[Env, Out]] =
     for {
       _ <- scope.headOption
       scope1 = this.scope.tail
-    } yield new SimpleScheduler[Env] (this.policy, scope1, seed)
+    } yield new SimpleScheduler[Env, Out] (this.policy, scope1, seed)
 
 }
 
@@ -84,23 +92,27 @@ object SimpleScheduler {
 
   private val _top_ : Tag = "_top_"
 
-  def empty[Env] (seed: Long): SimpleScheduler[Env] =
-    new SimpleScheduler[Env] (
-      policy = Map[Tag, (Env, Statement, Statement) => Boolean] (),
+  def empty[Env, Out] (seed: Long): SimpleScheduler[Env, Out] =
+    new SimpleScheduler[Env, Out] (
+      policy = Map[Tag, Env => Boolean] (),
       scope = List (_top_),
-      seed = seed)
+      seed = seed
+    )
+
 
   /** A convenience constructor for building empty schedulers */
-  def apply[Env] (seed: Long): SimpleScheduler[Env] = empty (seed)
+  def apply[Env, Out] (seed: Long): SimpleScheduler[Env, Out] =
+    empty (seed)
+
 
   /** A bunch of predefined schedulers */
 
-  def AlwaysLeftScheduler[Env] (seed: Long): SimpleScheduler[Env] =
-    this.empty[Env] (seed)
+  def AlwaysLeftScheduler[Env, Out] (seed: Long): SimpleScheduler[Env, Out] =
+    this.empty[Env, Out] (seed)
       .left (_top_)
 
-  def AlwaysRightScheduler[Env] (seed: Long): SimpleScheduler[Env] =
-    this.empty[Env] (seed)
+  def AlwaysRightScheduler[Env, Out] (seed: Long): SimpleScheduler[Env, Out] =
+    this.empty[Env, Out] (seed)
       .right (_top_)
 
   /**
@@ -109,17 +121,18 @@ object SimpleScheduler {
    *
    * Not sure that this is a simple scheduler, but I hacked it in.
    */
-  def FairCoinScheduler[Env] (seed: Long): SimpleScheduler[Env] =
-    new SimpleScheduler[Env] (
-      policy = Map[Tag, (Env, Statement, Statement) => Boolean] (),
-      scope = List (_top_),
-      seed = seed) {
+  def FairCoinScheduler[Env, Out] (seed: Long)
+  : SimpleScheduler[Env, Out] =
+      new SimpleScheduler[Env, Out] (
+        policy = Map[Tag, Env => Boolean] (),
+        scope = List (_top_),
+        seed = seed) {
 
-      override def demonic (env: Env, stmt1: Statement, stmt2: Statement)
-        : (SimpleScheduler[Env], Option[Boolean]) =
-          probabilistic (0.5) match {
-            case (scheduler, choice) => scheduler -> Some (choice)
-          }
-    }
+        override def demonic (env: Env)
+          : (SimpleScheduler[Env, Out], Option[Boolean]) = {
+          val (scheduler, choice) =  probabilistic (0.5)
+          scheduler -> Some (choice)
+        }
+      }
 
 }
