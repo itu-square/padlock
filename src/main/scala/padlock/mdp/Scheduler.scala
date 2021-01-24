@@ -49,8 +49,6 @@ trait Scheduler[Env, Out] {
 
   def probabilistic (p: Probability): (Scheduler[Env,Out], Boolean)
 
-  // TODO: add map
-
   /**
    * Enter a named scope.  Scope names are used to construct
    * scheduler policies.

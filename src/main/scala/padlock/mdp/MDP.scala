@@ -48,10 +48,6 @@ object MDP {
    * scheduler. Returns None if the Scheduler's policy failed.  In such case, we
    * should Abort like with any other error.
    */
-  // TODO: Einar suggested to change this to Runner[Option[Statement]].
-  // TODO: We could assume that the policy is complete and get rid of the option
-  // for simplicity. We already have Abort for that.
-
   def demonic (env: Env, stmt1: Statement, stmt2: Statement)
     : Runner[Option[Statement]] =
     State { s: Scheduler[Env, Statement] =>
@@ -142,8 +138,6 @@ object MDP {
           case (stmt11, env1) =>
             val stmt = if (stmt11 != Skip) Seq (stmt11, stmt2) else stmt2
             reduce (stmt) (env1) (k)
-            // TODO (test the following, which I would find a more natural rule)
-            // reduce (stmt1) (env1) (se => reduce (stmt2) (se._2) (k))
         }
 
 
