@@ -15,7 +15,7 @@ trait Executor[SymbolicExpr, PathCondition] {
 
 
     // The type of symbolic expression is whatever the  type of the variable is.
-    type SymbolicEnv = Map [Name,SymbolicExpr]
+    type SymbolicEnv = Map [Name,SymbolicExpr] // cal U
 
     // Is an expectation mapping of states to real values? There is something
     // inadequate, in this representation, as in general it becomes infinite I
@@ -25,7 +25,42 @@ trait Executor[SymbolicExpr, PathCondition] {
     // The type of the SymbolicExpr should be a real number (we might need to
     // add a type checker to the tool)
 
-    type SymbolicExpectation = Map[SymbolicEnv,SymbolicExpr]
+    type SymbolicExpectation = (SymbolicEnv, SymbolicVar, ExpectationConstraints)
+
+    // of type Real
+    type ExpectationConstraints = SymbolicExpr // includes pgcl.Expression
+
+    initial expectation: empty -> 1
+    initial expectation: <x -> 0> -> x             type: SymbolicExpr (over dom SymbolicEnv)
+    initial expectation: <x -> 0> -> X,  X = x     type: SymbolicExpr (over dom SymbolicEnv)
+
+    example of precondition:
+    <x -> X0, y -> Y0> -> EXP
+    EXP == if x+y % 2 == 0 then 1/3 else 2/3
+    EXP - random variable, depends on x and y, which are also random variables
+
+    ***
+    PRE: for any distribution of X0, Y0 we have that if the sum is even EXP is 1/3 otherwise it is 2/3
+
+    PROG:
+    x := 2 x
+    y := 2 y
+
+    POST: for any distribution of X0, Y0, we have that EXP is 1/3, with probability 1.
+    ***
+
+    1/3 prob that x + y even
+    2/3 ....            odd
+
+
+    proof split:
+     < subst1 > -> sexpr1
+     < subst2 > -> sexpr2
+    merge:
+     < subst' > -> freshX, freshX = f (sexpr1, sexpr2)
+
+
+    // type Expectation = Map[Env,Real]
 
     // This expressions should be of Boolean type (or perhaps even more), let's
     // see what shows up
